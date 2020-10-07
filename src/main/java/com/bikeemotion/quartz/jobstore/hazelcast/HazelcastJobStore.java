@@ -2,10 +2,12 @@ package com.bikeemotion.quartz.jobstore.hazelcast;
 
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.IMap;
-import com.hazelcast.core.ISet;
-import com.hazelcast.core.MultiMap;
+import com.hazelcast.map.IMap;
+import com.hazelcast.collection.ISet;
+import com.hazelcast.multimap.MultiMap;
 import com.hazelcast.query.Predicate;
+import com.hazelcast.config.IndexConfig;
+import com.hazelcast.config.IndexType;
 import org.quartz.Calendar;
 import org.quartz.DateBuilder;
 import org.quartz.JobDetail;
@@ -113,7 +115,7 @@ public class HazelcastJobStore implements JobStore, Serializable {
     pausedJobGroups = getSet(HC_JOB_STORE_PAUSED_JOB_GROUPS);
     calendarsByName = getMap(HC_JOB_CALENDAR_MAP);
 
-    triggersByKey.addIndex("nextFireTime", true);
+    //triggersByKey.addIndex(new IndexConfig(IndexType.SORTED, "nextFireTime"));
 
     LOG.debug("Hazelcast Job Store Initialized.");
   }
@@ -563,7 +565,9 @@ public class HazelcastJobStore implements JobStore, Serializable {
       return Collections.emptyList();
     }
 
-    return triggersByKey.values(new TriggerByJobPredicate(jobKey))
+    Predicate<TriggerKey, TriggerWrapper> p = new TriggerByJobPredicate(jobKey);
+
+    return triggersByKey.values(p)
         .stream()
         .map(v -> (OperableTrigger) v.getTrigger())
         .collect(Collectors.toList());
@@ -1240,7 +1244,7 @@ public class HazelcastJobStore implements JobStore, Serializable {
 /**
  * Filter triggers with a given job key
  */
-class TriggerByJobPredicate implements Predicate<JobKey, TriggerWrapper> {
+class TriggerByJobPredicate implements Predicate<TriggerKey, TriggerWrapper> {
 
   private JobKey key;
 
@@ -1250,7 +1254,7 @@ class TriggerByJobPredicate implements Predicate<JobKey, TriggerWrapper> {
   }
 
   @Override
-  public boolean apply(Entry<JobKey, TriggerWrapper> entry) {
+  public boolean apply(Entry<TriggerKey, TriggerWrapper> entry) {
 
     return key != null && entry != null && key.equals(entry.getValue().jobKey);
   }
